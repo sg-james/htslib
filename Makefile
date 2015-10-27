@@ -26,12 +26,18 @@ CC     = gcc
 AR     = ar
 RANLIB = ranlib
 
-CPPFLAGS =
+#ZLib
+ZLIB_ROOT 	?=/mingw/x86_64-w64-mingw32
+ZLIB_INC		?= $(ZLIB_ROOT)/include
+ZLIB_DIR		?= $(ZLIB_ROOT)/lib
+
+CPPFLAGS = -I. -I$(ZLIB_INC)
 # TODO: probably update cram code to make it compile cleanly with -Wc++-compat
 CFLAGS   = -g -Wall -O2
 EXTRA_CFLAGS_PIC = -fpic
 LDFLAGS  =
-LDLIBS   =
+#LDLIBS   = -L$(ZLIB_ROOT) -lz -lm
+LDLIBS   = -L$(ZLIB_DIR) -lz -lm
 
 # For now these don't work too well as samtools also needs to know to
 # add -lbz2 and -llzma if linking against the static libhts.a library.
@@ -69,9 +75,9 @@ INSTALL_DATA    = $(INSTALL) -m 644
 INSTALL_DIR     = $(MKDIR_P) -m 755
 
 BUILT_PROGRAMS = \
+	tabix \
 	bgzip \
-	htsfile \
-	tabix
+	htsfile
 
 BUILT_TEST_PROGRAMS = \
 	test/fieldarith \
@@ -96,10 +102,15 @@ ifeq "$(PLATFORM)" "Darwin"
 SHLIB_FLAVOUR = dylib
 lib-shared: libhts.dylib
 else
+ifeq "$(findstring MINGW,$(PLATFORM))" "MINGW"
+SHLIB_FLAVOUR = dll
+LDLIBS += -lws2_32
+lib-shared: libhts.dll
+else
 SHLIB_FLAVOUR = so
 lib-shared: libhts.so
 endif
-
+endif
 
 PACKAGE_VERSION  = 1.2.1
 LIBHTS_SOVERSION = 1
@@ -182,6 +193,16 @@ LIBHTS_OBJS = \
 	cram/vlen.o \
 	cram/zfio.o
 
+WIN32_COMPAT_OBJS = \
+	compat/drand48.o \
+	compat/fsync.o \
+	compat/getpagesize.o \
+	compat/valloc.o
+
+ifeq "$(findstring MINGW,$(PLATFORM))" "MINGW"
+	LIBHTS_OBJS += $(WIN32_COMPAT_OBJS)
+endif
+
 cram_h = cram/cram.h $(cram_samtools_h) $(cram_sam_header_h) $(cram_structs_h) $(cram_io_h) cram/cram_encode.h cram/cram_decode.h cram/cram_stats.h cram/cram_codecs.h cram/cram_index.h $(htslib_cram_h)
 cram_io_h = cram/cram_io.h $(cram_misc_h)
 cram_misc_h = cram/misc.h cram/os.h
@@ -220,7 +241,7 @@ libhts.a: $(LIBHTS_OBJS)
 # file used at runtime (when $LD_LIBRARY_PATH includes the build directory).
 
 libhts.so: $(LIBHTS_OBJS:.o=.pico)
-	$(CC) -shared -Wl,-soname,libhts.so.$(LIBHTS_SOVERSION) -pthread $(LDFLAGS) -o $@ $(LIBHTS_OBJS:.o=.pico) $(LDLIBS) -lz -lm
+	$(CC) -shared -Wl,-soname,libhts.so.$(LIBHTS_SOVERSION) -pthread $(LDFLAGS) -o $@ $(LIBHTS_OBJS:.o=.pico) $(LDLIBS) 
 	ln -sf $@ libhts.so.$(LIBHTS_SOVERSION)
 
 # Similarly this also creates libhts.NN.dylib as a byproduct, so that programs
@@ -228,8 +249,16 @@ libhts.so: $(LIBHTS_OBJS:.o=.pico)
 # includes this project's build directory).
 
 libhts.dylib: $(LIBHTS_OBJS)
-	$(CC) -dynamiclib -install_name $(libdir)/libhts.$(LIBHTS_SOVERSION).dylib -current_version $(NUMERIC_VERSION) -compatibility_version $(LIBHTS_SOVERSION) $(LDFLAGS) -o $@ $(LIBHTS_OBJS) $(LDLIBS) -lz
+	$(CC) -dynamiclib -install_name $(libdir)/libhts.$(LIBHTS_SOVERSION).dylib -current_version $(NUMERIC_VERSION) -compatibility_version $(LIBHTS_SOVERSION) $(LDFLAGS) -o $@ $(LIBHTS_OBJS) $(LDLIBS)
 	ln -sf $@ libhts.$(LIBHTS_SOVERSION).dylib
+
+# Windows build under MinGW
+# http://stackoverflow.com/questions/5674613/compiling-a-dynamically-linked-library
+# -shared -Wl,--out-implib,libfile.a -o file.dll file.o
+libhts.dll: $(LIBHTS_OBJS)
+	$(CC) -shared -Wl,--out-implib,libhts.dll.a -pthread $(LDFLAGS) -o $@ $(LIBHTS_OBJS) $(LDLIBS) -lz -lws2_32
+
+
 
 
 bgzf.o bgzf.pico: bgzf.c config.h $(htslib_hts_h) $(htslib_bgzf_h) $(htslib_hfile_h) $(htslib_khash_h)
@@ -271,13 +300,13 @@ cram/zfio.o cram/zfio.pico: cram/zfio.c config.h cram/os.h cram/zfio.h
 
 
 bgzip: bgzip.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ bgzip.o libhts.a $(LDLIBS) -lz
+	$(CC) -pthread $(LDFLAGS) -o $@ bgzip.o libhts.a $(LDLIBS) -L/mingw/x86_64-w64-mingw32 -lz -lws2_32
 
 htsfile: htsfile.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ htsfile.o libhts.a $(LDLIBS) -lz
+	$(CC) -pthread $(LDFLAGS) -o $@ htsfile.o libhts.a $(LDLIBS) -lz -lws2_32
 
 tabix: tabix.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ tabix.o libhts.a $(LDLIBS) -lz
+	$(CC) -pthread $(LDFLAGS) -o $@ tabix.o libhts.a $(LDLIBS) -lz -lws2_32
 
 bgzip.o: bgzip.c config.h $(htslib_bgzf_h) $(htslib_hts_h)
 htsfile.o: htsfile.c config.h $(htslib_hfile_h) $(htslib_hts_h) $(htslib_sam_h) $(htslib_vcf_h)
@@ -295,25 +324,25 @@ check test: htsfile $(BUILT_TEST_PROGRAMS)
 	cd test && REF_PATH=: ./test.pl
 
 test/fieldarith: test/fieldarith.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/fieldarith.o libhts.a $(LDLIBS) -lz
+	$(CC) -pthread $(LDFLAGS) -o $@ test/fieldarith.o libhts.a $(LDLIBS) 
 
 test/hfile: test/hfile.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/hfile.o libhts.a $(LDLIBS) -lz
+	$(CC) -pthread $(LDFLAGS) -o $@ test/hfile.o libhts.a $(LDLIBS)
 
 test/sam: test/sam.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/sam.o libhts.a $(LDLIBS) -lz
+	$(CC) -pthread $(LDFLAGS) -o $@ test/sam.o libhts.a $(LDLIBS) 
 
 test/test-regidx: test/test-regidx.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/test-regidx.o libhts.a $(LDLIBS) -lz
+	$(CC) -pthread $(LDFLAGS) -o $@ test/test-regidx.o libhts.a $(LDLIBS)
 
 test/test_view: test/test_view.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/test_view.o libhts.a $(LDLIBS) -lz
+	$(CC) -pthread $(LDFLAGS) -o $@ test/test_view.o libhts.a $(LDLIBS)
 
 test/test-vcf-api: test/test-vcf-api.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/test-vcf-api.o libhts.a $(LDLIBS) -lz
+	$(CC) -pthread $(LDFLAGS) -o $@ test/test-vcf-api.o libhts.a $(LDLIBS)
 
 test/test-vcf-sweep: test/test-vcf-sweep.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/test-vcf-sweep.o libhts.a $(LDLIBS) -lz
+	$(CC) -pthread $(LDFLAGS) -o $@ test/test-vcf-sweep.o libhts.a $(LDLIBS)
 
 test/fieldarith.o: test/fieldarith.c $(htslib_sam_h)
 test/hfile.o: test/hfile.c $(htslib_hfile_h) $(htslib_hts_defs_h)
@@ -379,6 +408,8 @@ clean-so:
 clean-dylib:
 	-rm -f libhts.dylib libhts.*.dylib
 
+clean-dll:
+	-rm -f libhts.dll libhts.*.dll
 
 tags TAGS:
 	ctags -f TAGS *.[ch] cram/*.[ch] htslib/*.h

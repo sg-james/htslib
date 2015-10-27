@@ -41,6 +41,8 @@ DEALINGS IN THE SOFTWARE.  */
 #include "htslib/hts.h"
 #include "htslib/regidx.h"
 
+#include "compat.h"
+
 typedef struct
 {
     char *regions_fname, *targets_fname;

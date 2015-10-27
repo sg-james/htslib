@@ -39,6 +39,8 @@
 #include "htslib/bgzf.h"
 #include "htslib/hfile.h"
 
+
+#include "compat.h"
 #define BGZF_CACHE
 #define BGZF_MT
 

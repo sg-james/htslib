@@ -32,6 +32,11 @@ DEALINGS IN THE SOFTWARE.  */
 
 #include "htslib/sam.h"
 
+
+#ifdef _WIN32
+#include <fcntl.h>
+#endif
+
 int main(int argc, char *argv[])
 {
     samFile *in;
@@ -47,6 +52,11 @@ int main(int argc, char *argv[])
     int nreads = 0;
     int extra_hdr_nuls = 0;
     int benchmark = 0;
+
+#ifdef _WIN32
+    // Set stdout to binary to avoid rewriting of newline characters
+    _setmode(_fileno(stdout),_O_BINARY);
+#endif
 
     while ((c = getopt(argc, argv, "IbDCSl:t:i:o:N:BZ:")) >= 0) {
         switch (c) {
