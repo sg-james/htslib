@@ -27,9 +27,9 @@ AR     = ar
 RANLIB = ranlib
 
 #ZLib
-ZLIB_ROOT 	?=/mingw/x86_64-w64-mingw32
-ZLIB_INC		?= $(ZLIB_ROOT)/include
-ZLIB_DIR		?= $(ZLIB_ROOT)/lib
+ZLIB_ROOT 	=/mingw/x86_64-w64-mingw32
+ZLIB_INC		= $(ZLIB_ROOT)/include
+ZLIB_DIR		= $(ZLIB_ROOT)/lib
 
 CPPFLAGS = -I. -I$(ZLIB_INC)
 # TODO: probably update cram code to make it compile cleanly with -Wc++-compat
@@ -241,7 +241,7 @@ libhts.a: $(LIBHTS_OBJS)
 # file used at runtime (when $LD_LIBRARY_PATH includes the build directory).
 
 libhts.so: $(LIBHTS_OBJS:.o=.pico)
-	$(CC) -shared -Wl,-soname,libhts.so.$(LIBHTS_SOVERSION) -pthread $(LDFLAGS) -o $@ $(LIBHTS_OBJS:.o=.pico) $(LDLIBS) 
+	$(CC) -shared -Wl,-soname,libhts.so.$(LIBHTS_SOVERSION) -pthread $(LDFLAGS) -o $@ $(LIBHTS_OBJS:.o=.pico) $(LDLIBS) -lzlib1 -lws2_32
 	ln -sf $@ libhts.so.$(LIBHTS_SOVERSION)
 
 # Similarly this also creates libhts.NN.dylib as a byproduct, so that programs
@@ -256,7 +256,7 @@ libhts.dylib: $(LIBHTS_OBJS)
 # http://stackoverflow.com/questions/5674613/compiling-a-dynamically-linked-library
 # -shared -Wl,--out-implib,libfile.a -o file.dll file.o
 libhts.dll: $(LIBHTS_OBJS)
-	$(CC) -shared -Wl,--out-implib,libhts.dll.a -pthread $(LDFLAGS) -o $@ $(LIBHTS_OBJS) $(LDLIBS) -lz -lws2_32
+	$(CC) -shared -Wl,--out-implib,libhts.dll.a -pthread $(LDFLAGS) -o $@ $(LIBHTS_OBJS) $(LDLIBS) -L/mingw/bin -lzlib1 -lws2_32
 
 
 
@@ -300,13 +300,13 @@ cram/zfio.o cram/zfio.pico: cram/zfio.c config.h cram/os.h cram/zfio.h
 
 
 bgzip: bgzip.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ bgzip.o libhts.a $(LDLIBS) -L/mingw/x86_64-w64-mingw32 -lz -lws2_32
+	$(CC) -pthread $(LDFLAGS) -o $@ bgzip.o libhts.a $(LDLIBS) -lzlib1 -lws2_32
 
 htsfile: htsfile.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ htsfile.o libhts.a $(LDLIBS) -lz -lws2_32
+	$(CC) -pthread $(LDFLAGS) -o $@ htsfile.o libhts.a $(LDLIBS) -lzlib1 -lws2_32
 
 tabix: tabix.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ tabix.o libhts.a $(LDLIBS) -lz -lws2_32
+	$(CC) -pthread $(LDFLAGS) -o $@ tabix.o libhts.a $(LDLIBS) -lzlib1 -lws2_32
 
 bgzip.o: bgzip.c config.h $(htslib_bgzf_h) $(htslib_hts_h)
 htsfile.o: htsfile.c config.h $(htslib_hfile_h) $(htslib_hts_h) $(htslib_sam_h) $(htslib_vcf_h)

@@ -49,10 +49,15 @@ static void error(const char *format, ...)
 
 static int write_open(const char *fn, int is_forced)
 {
+
+#ifndef O_BINARY
+    #define O_BINARY 0
+#endif
+
     int fd = -1;
     char c;
     if (!is_forced) {
-        if ((fd = open(fn, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, 0666)) < 0 && errno == EEXIST) {
+        if ((fd = open(fn, O_BINARY | O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, 0666)) < 0 && errno == EEXIST) {
             fprintf(stderr, "[bgzip] %s already exists; do you wish to overwrite (y or n)? ", fn);
             if ( scanf("%c", &c) != 1 ) c = 'n';
             if (c != 'Y' && c != 'y') {
@@ -62,7 +67,7 @@ static int write_open(const char *fn, int is_forced)
         }
     }
     if (fd < 0) {
-        if ((fd = open(fn, O_WRONLY | O_CREAT | O_TRUNC, 0666)) < 0) {
+        if ((fd = open(fn, O_BINARY | O_WRONLY | O_CREAT | O_TRUNC, 0666)) < 0) {
             fprintf(stderr, "[bgzip] %s: Fail to write\n", fn);
             exit(EXIT_FAILURE);
         }

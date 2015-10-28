@@ -40,9 +40,6 @@
 #include "htslib/hfile.h"
 
 
-#include "compat.h"
-#define BGZF_CACHE
-#define BGZF_MT
 
 #define BLOCK_HEADER_LENGTH 18
 #define BLOCK_FOOTER_LENGTH 8
