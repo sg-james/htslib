@@ -37,6 +37,9 @@
 
 #ifdef _WIN32
 
+// Mingw defines off_t as 32bit, we need it to be 64bit
+#define off_t_compat __int64
+
 // htslib uses these POSIX/linux functions.  We provide declarations
 // here and We provide implementations in compat/, derived from other
 // LGPL- or BSD-licensed implementations.

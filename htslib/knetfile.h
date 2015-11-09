@@ -30,6 +30,8 @@
 #include <stdint.h>
 #include <fcntl.h>
 
+#include "compat.h"
+
 #ifndef _WIN32
 #define netread(fd, ptr, len) read(fd, ptr, len)
 #define netwrite(fd, ptr, len) write(fd, ptr, len)
@@ -91,7 +93,7 @@ extern "C" {
 	  This routine only sets ->offset and ->is_ready=0. It does not
 	  communicate with the FTP server.
 	 */
-	off_t knet_seek(knetFile *fp, off_t off, int whence);
+        off_t_compat knet_seek(knetFile *fp, off_t_compat off, int whence);
 	int knet_close(knetFile *fp);
 
 #ifdef __cplusplus

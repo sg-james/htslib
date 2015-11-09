@@ -179,9 +179,9 @@ static SOCKET socket_connect(const char *host, const char *port)
 }
 #endif
 
-static off_t my_netread(int fd, void *buf, off_t len)
+static off_t_compat my_netread(int fd, void *buf, off_t_compat len)
 {
-	off_t rest = len, curr, l = 0;
+        off_t_compat rest = len, curr, l = 0;
 	/* recv() and read() may not read the required length of data with
 	 * one call. They have to be called repeatedly. */
 	while (rest) {
@@ -427,9 +427,9 @@ int khttp_connect_file(knetFile *fp)
 	}
 	ret = strtol(buf + 8, &p, 0); // HTTP return code
 	if (ret == 200 && fp->offset>0) { // 200 (complete result); then skip beginning of the file
-		off_t rest = fp->offset;
+                off_t_compat rest = fp->offset;
 		while (rest) {
-			off_t l = rest < 0x10000? rest : 0x10000;
+                        off_t_compat l = rest < 0x10000? rest : 0x10000;
 			rest -= my_netread(fp->fd, buf, l);
 		}
 	} else if (ret != 206 && ret != 200) {
@@ -513,7 +513,7 @@ knetFile *knet_dopen(int fd, const char *mode)
 
 ssize_t knet_read(knetFile *fp, void *buf, size_t len)
 {
-	off_t l = 0;
+        off_t_compat l = 0;
 	if (fp->fd == -1) return 0;
 	if (fp->type == KNF_TYPE_FTP) {
 		if (fp->is_ready == 0) {
@@ -540,12 +540,12 @@ ssize_t knet_read(knetFile *fp, void *buf, size_t len)
 	return l;
 }
 
-off_t knet_seek(knetFile *fp, off_t off, int whence)
+off_t_compat knet_seek(knetFile *fp, off_t_compat off, int whence)
 {
 	if (whence == SEEK_SET && off == fp->offset) return 0;
 	if (fp->type == KNF_TYPE_LOCAL) {
 		/* Be aware that lseek() returns the offset after seeking, while fseek() returns zero on success. */
-		off_t offset = lseek(fp->fd, off, whence);
+                off_t_compat offset = lseek(fp->fd, off, whence);
 		if (offset == -1) return -1;
 		fp->offset = offset;
 		return fp->offset;

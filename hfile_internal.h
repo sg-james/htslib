@@ -27,6 +27,8 @@ DEALINGS IN THE SOFTWARE.  */
 
 #include "htslib/hfile.h"
 
+#include "compat.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -45,7 +47,7 @@ struct hFILE_backend {
 
     /* As per lseek(2), returning the resulting offset within the stream or
        negative (and setting errno) on errors.  */
-    off_t (*seek)(hFILE *fp, off_t offset, int whence) HTS_RESULT_USED;
+    off_t_compat (*seek)(hFILE *fp, off_t_compat offset, int whence) HTS_RESULT_USED;
 
     /* Performs low-level flushing, if any, e.g., fsync(2); for writing streams
        only.  Returns 0 for success or negative (and sets errno) on errors. */

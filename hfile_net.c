@@ -31,6 +31,8 @@ DEALINGS IN THE SOFTWARE.  */
 
 #include "htslib/knetfile.h"
 
+#include "compat.h"
+
 typedef struct {
     hFILE base;
     knetFile *netfp;
@@ -66,7 +68,7 @@ static ssize_t net_read(hFILE *fpv, void *buffer, size_t nbytes)
     return knet_read(fp->netfp, buffer, nbytes);
 }
 
-static off_t net_seek(hFILE *fpv, off_t offset, int whence)
+static off_t_compat net_seek(hFILE *fpv, off_t_compat offset, int whence)
 {
     hFILE_net *fp = (hFILE_net *) fpv;
     return knet_seek(fp->netfp, offset, whence);

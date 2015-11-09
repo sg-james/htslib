@@ -31,6 +31,8 @@ DEALINGS IN THE SOFTWARE.  */
 
 #include "hts_defs.h"
 
+#include "compat.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,7 +44,7 @@ struct hFILE_backend;
 typedef struct hFILE {
     char *buffer, *begin, *end, *limit;
     const struct hFILE_backend *backend;
-    off_t offset;
+    off_t_compat offset;
     unsigned at_eof:1;
     int has_errno;
 } hFILE;
@@ -106,13 +108,13 @@ static inline void hclearerr(hFILE *fp)
   @return    The resulting offset within the stream (as per lseek(2)),
     or negative if an error occurred.
 */
-off_t hseek(hFILE *fp, off_t offset, int whence) HTS_RESULT_USED;
+off_t_compat hseek(hFILE *fp, off_t_compat offset, int whence) HTS_RESULT_USED;
 
 /*!
   @abstract  Report the current stream offset
   @return    The offset within the stream, starting from zero.
 */
-static inline off_t htell(hFILE *fp)
+static inline off_t_compat htell(hFILE *fp)
 {
     return fp->offset + (fp->begin - fp->buffer);
 }

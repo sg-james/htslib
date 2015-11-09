@@ -23,7 +23,6 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.  */
 
 #include <config.h>
-#include "compat.h"
 
 
 #include <stdio.h>
@@ -250,9 +249,15 @@ int hputs2(const char *text, size_t totalbytes, size_t ncopied, hFILE *fp)
     return (hwrite2(fp, text, totalbytes, ncopied) >= 0)? 0 : EOF;
 }
 
-off_t hseek(hFILE *fp, off_t offset, int whence)
+off_t_compat hseek(hFILE *fp, off_t_compat offset, int whence)
 {
-    off_t pos;
+    off_t_compat pos;
+//    ssize_t test123 = 0;
+//    size_t test1234 = 0;
+//    printf("hfile:hseek size: %i\n", sizeof(pos));
+//    printf("ssize_t size:%i\n",sizeof(test123));
+//    printf("size_t size:%i\n",sizeof(test1234));
+//    printf("offset: %i\n",offset);
 
     if (writebuffer_is_nonempty(fp)) {
         int ret = flush_buffer(fp);
@@ -348,10 +353,15 @@ static ssize_t fd_write(hFILE *fpv, const void *buffer, size_t nbytes)
     return n;
 }
 
-static off_t fd_seek(hFILE *fpv, off_t offset, int whence)
+static off_t_compat fd_seek(hFILE *fpv, off_t_compat offset, int whence)
 {
     hFILE_fd *fp = (hFILE_fd *) fpv;
+#ifdef _WIN32
+    // Mingw was pointing to 32bit, now it's not.
+    return lseek64(fp->fd, offset, whence);
+#else
     return lseek(fp->fd, offset, whence);
+#endif
 }
 
 static int fd_flush(hFILE *fpv)
@@ -404,7 +414,30 @@ static size_t blksize(int fd)
 static hFILE *hopen_fd(const char *filename, const char *mode)
 {
     hFILE_fd *fp = NULL;
-    int fd = open(filename, hfile_oflags(mode), 0666);
+    printf("hfile:hopen_fd: %s, %s\n", filename, mode);
+
+    int fd = 0;
+
+#ifdef __WIN32
+    if(strchr(mode,'r')){
+//        printf("hopen_fd:win32read\n");
+//        FILE* fop = fopen(filename, 'rb');
+//        fd = _fileno(fop);
+        fd = open(filename, O_RDONLY | O_BINARY, 0666);
+    } else if(strchr(mode, 'w')){
+//        printf("hopen_fd:win32write\n");
+//        FILE* fop = fopen(filename, 'wb');
+//        fd = _fileno(fop);
+        fd = open(filename, O_WRONLY | O_BINARY | O_CREAT | O_TRUNC , 0666);
+    }else{
+        fd = open(filename, hfile_oflags(mode) , 0666);
+    }
+#else
+    int fd = open(filename, hfile_oflags(mode) , 0666);
+#endif
+
+    //int fd = open(filename, hfile_oflags(mode) , 0666);
+
     if (fd < 0) goto error;
 
     fp = (hFILE_fd *) hfile_init(sizeof (hFILE_fd), mode, blksize(fd));
@@ -462,6 +495,7 @@ int hfile_oflags(const char *mode)
     flags |= O_BINARY;
 #endif
 
+    printf("OFLAGS: %i\n", rdwr|flags);
     return rdwr | flags;
 }
 
@@ -486,7 +520,7 @@ static ssize_t mem_read(hFILE *fpv, void *buffer, size_t nbytes)
     return nbytes;
 }
 
-static off_t mem_seek(hFILE *fpv, off_t offset, int whence)
+static off_t_compat mem_seek(hFILE *fpv, off_t_compat offset, int whence)
 {
     hFILE_mem *fp = (hFILE_mem *) fpv;
     size_t absoffset = (offset >= 0)? offset : -offset;

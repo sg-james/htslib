@@ -320,7 +320,7 @@ faidx_t *fai_load(const char *fn)
     fai = fai_read(fp);
     fclose(fp);
 
-    fai->bgzf = bgzf_open(fn, "rb");
+    fai->bgzf = bgzf_open(fn, "r");
     free(str);
     if (fai->bgzf == 0) {
         fprintf(stderr, "[fai_load] fail to open FASTA file.\n");

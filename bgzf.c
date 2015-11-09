@@ -39,6 +39,7 @@
 #include "htslib/bgzf.h"
 #include "htslib/hfile.h"
 
+#include "compat.h"
 
 
 #define BLOCK_HEADER_LENGTH 18
@@ -546,6 +547,7 @@ int bgzf_read_block(BGZF *fp)
 
 ssize_t bgzf_read(BGZF *fp, void *data, size_t length)
 {
+    //printf("bgzf:bgzf_read\n");
     ssize_t bytes_read = 0;
     uint8_t *output = (uint8_t*)data;
     if (length <= 0) return 0;
@@ -575,6 +577,7 @@ ssize_t bgzf_read(BGZF *fp, void *data, size_t length)
 
 ssize_t bgzf_raw_read(BGZF *fp, void *data, size_t length)
 {
+    printf("bgzf:bgzf_raw_read\n");
     return hread(fp->fp, data, length);
 }
 
@@ -834,7 +837,7 @@ void bgzf_set_cache_size(BGZF *fp, int cache_size)
 int bgzf_check_EOF(BGZF *fp)
 {
     uint8_t buf[28];
-    off_t offset = htell(fp->fp);
+    off_t_compat offset = htell(fp->fp);
     if (hseek(fp->fp, -28, SEEK_END) < 0) {
         if (errno == ESPIPE) { hclearerr(fp->fp); return 2; }
         else return -1;

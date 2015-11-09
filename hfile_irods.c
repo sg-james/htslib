@@ -38,6 +38,8 @@ DEALINGS IN THE SOFTWARE.  */
 #include <dataObjLseek.h>
 #include <dataObjClose.h>
 
+#include "compat.h"
+
 typedef struct {
     hFILE base;
     int descriptor;
@@ -143,7 +145,7 @@ static ssize_t irods_write(hFILE *fpv, const void *buffer, size_t nbytes)
     return ret;
 }
 
-static off_t irods_seek(hFILE *fpv, off_t offset, int whence)
+static off_t_compat irods_seek(hFILE *fpv, off_t_compat offset, int whence)
 {
     hFILE_irods *fp = (hFILE_irods *) fpv;
     openedDataObjInp_t args;
@@ -222,6 +224,8 @@ hFILE *hopen_irods(const char *filename, const char *mode)
 
     ret = parseRodsPath(&path, &irods.env);
     if (ret < 0) goto error;
+
+
 
     memset(&args, 0, sizeof args);
     strcpy(args.objPath, path.outPath);

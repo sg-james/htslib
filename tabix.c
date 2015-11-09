@@ -42,6 +42,7 @@ DEALINGS IN THE SOFTWARE.  */
 #include "htslib/regidx.h"
 
 #include "compat.h"
+#include "tabix.h"
 
 typedef struct
 {
@@ -91,8 +92,18 @@ int file_type(const char *fname)
     return 0;
 }
 
-static char **parse_regions(char *regions_fname, char **argv, int argc, int *nregs)
+
+char **parse_regions(char *regions_fname, char **argv, int argc, int *nregs)
 {
+
+//    printf("Region name: %s", regions_fname, "\n\n");
+//    printf(&argv);
+//    for(int i = 0; i < argc; i++){
+//        printf("Arg: %s \n", argv[i]);
+//    }
+//    printf("\n", argc, "\n");
+//    printf("Nregs: %i\n", *nregs);
+
     kstring_t str = {0,0,0};
     int iseq = 0, ireg = 0;
     char **regs = NULL;
@@ -141,8 +152,10 @@ static char **parse_regions(char *regions_fname, char **argv, int argc, int *nre
     for (iseq=0; iseq<argc; iseq++) regs[ireg++] = strdup(argv[iseq]);
     return regs;
 }
-static int query_regions(args_t *args, char *fname, char **regs, int nregs)
+
+int query_regions(args_t *args, char *fname, char **regs, int nregs)
 {
+//    printf("tabix:query_regions: \n");
     int i;
     htsFile *fp = hts_open(fname,"r");
     if ( !fp ) error("Could not read %s\n", fname);
@@ -204,6 +217,7 @@ static int query_regions(args_t *args, char *fname, char **regs, int nregs)
             if ( reg_idx ) seq = tbx_seqnames(tbx, &nseq);
             for (i=0; i<nregs; i++)
             {
+//                printf("Query: %s\n", regs[i]);
                 hts_itr_t *itr = tbx_itr_querys(tbx, regs[i]);
                 if ( !itr ) continue;
                 while (tbx_itr_next(fp, tbx, itr, &str) >= 0)
@@ -226,6 +240,9 @@ static int query_regions(args_t *args, char *fname, char **regs, int nregs)
 
     for (i=0; i<nregs; i++) free(regs[i]);
     free(regs);
+
+
+//    printf("!@#$% Done with query region.");
     return 0;
 }
 static int query_chroms(char *fname)
@@ -300,7 +317,8 @@ int reheader_file(const char *fname, const char *header, int ftype, tbx_conf_t *
         }
 
         // Output the new header
-        FILE *hdr  = fopen(header,"r");
+//        printf("tabix.c:fopen");
+        FILE *hdr  = fopen(header,"rb");
         if ( !hdr ) error("%s: %s", header,strerror(errno));
         const size_t page_size = 32768;
         char *buf = malloc(page_size);
@@ -452,8 +470,14 @@ int main(int argc, char *argv[])
     {
         int nregs = 0;
         char **regs = NULL;
-        if ( !args.header_only )
+        if ( !args.header_only ){
+//            printf("not header only\n");
+//            printf("Regions fname:%s\n", args.regions_fname);
+//            printf("Argv: %i, optind: %i:", argv, optind);
+//            printf("New arg:%s\n",*(argv+optind+1));
+//            printf("New arg2:%i\n",(argc-optind-1));
             regs = parse_regions(args.regions_fname, argv+optind+1, argc-optind-1, &nregs);
+        }
         return query_regions(&args, argv[optind], regs, nregs);
     }
 
