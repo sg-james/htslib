@@ -27,17 +27,19 @@ AR     = ar
 RANLIB = ranlib
 
 #ZLib
-ZLIB_ROOT 	=/mingw/x86_64-w64-mingw32
-ZLIB_INC		= $(ZLIB_ROOT)/include
-ZLIB_DIR		= $(ZLIB_ROOT)/lib
+ZLIB_ROOT 	= "/mingw/x86_64-w64-mingw32"
+ZLIB_INC		= "$(ZLIB_ROOT)/include"
+ZLIB_DIR		= "$(ZLIB_ROOT)/lib"
 
 CPPFLAGS = -I. -I$(ZLIB_INC)
 # TODO: probably update cram code to make it compile cleanly with -Wc++-compat
 CFLAGS   = -g -Wall -O2
 EXTRA_CFLAGS_PIC = -fpic
-LDFLAGS  =
+LDFLAGS  = 
 #LDLIBS   = -L$(ZLIB_ROOT) -lz -lm
-LDLIBS   = -L$(ZLIB_DIR) -lz -lm
+LDLIBS   = -L. -lz -lm
+
+ALPHABETAGAMMA = -L. -lz -lws2_32
 
 # For now these don't work too well as samtools also needs to know to
 # add -lbz2 and -llzma if linking against the static libhts.a library.
@@ -78,6 +80,11 @@ BUILT_PROGRAMS = \
 	tabix \
 	bgzip \
 	htsfile
+	
+BUILT_DLLS = \
+	tabix.dll \
+	bgzip.dll \
+	htsfile.dll \
 
 BUILT_TEST_PROGRAMS = \
 	test/fieldarith \
@@ -88,7 +95,7 @@ BUILT_TEST_PROGRAMS = \
 	test/test-vcf-api \
 	test/test-vcf-sweep
 
-all: lib-static lib-shared $(BUILT_PROGRAMS) $(BUILT_TEST_PROGRAMS)
+all: lib-static lib-shared $(BUILT_PROGRAMS) $(BUILD_DLLS) $(BUILT_TEST_PROGRAMS) 
 
 HTSPREFIX =
 include htslib_vars.mk
@@ -241,7 +248,7 @@ libhts.a: $(LIBHTS_OBJS)
 # file used at runtime (when $LD_LIBRARY_PATH includes the build directory).
 
 libhts.so: $(LIBHTS_OBJS:.o=.pico)
-	$(CC) -shared -Wl,-soname,libhts.so.$(LIBHTS_SOVERSION) -pthread $(LDFLAGS) -o $@ $(LIBHTS_OBJS:.o=.pico) $(LDLIBS) -lzlib1 -lws2_32
+	$(CC) -shared -Wl,-soname,libhts.so.$(LIBHTS_SOVERSION) -pthread $(LDFLAGS) -o $@ $(LIBHTS_OBJS:.o=.pico) $(LDLIBS) $(ALPHABETAGAMMA)
 	ln -sf $@ libhts.so.$(LIBHTS_SOVERSION)
 
 # Similarly this also creates libhts.NN.dylib as a byproduct, so that programs
@@ -256,7 +263,7 @@ libhts.dylib: $(LIBHTS_OBJS)
 # http://stackoverflow.com/questions/5674613/compiling-a-dynamically-linked-library
 # -shared -Wl,--out-implib,libfile.a -o file.dll file.o
 libhts.dll: $(LIBHTS_OBJS)
-	$(CC) -shared -Wl,--out-implib,libhts.dll.a -pthread $(LDFLAGS) -o $@ $(LIBHTS_OBJS) $(LDLIBS) -L/mingw/bin -lzlib1 -lws2_32
+	$(CC) -shared -Wl,--out-implib,libhts.dll.a -pthread $(LDFLAGS) -o $@ $(LIBHTS_OBJS) $(LDLIBS) -L/mingw/bin $(ALPHABETAGAMMA)
 
 
 
@@ -299,14 +306,27 @@ cram/vlen.o cram/vlen.pico: cram/vlen.c config.h cram/vlen.h cram/os.h
 cram/zfio.o cram/zfio.pico: cram/zfio.c config.h cram/os.h cram/zfio.h
 
 
+
+
 bgzip: bgzip.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ bgzip.o libhts.a $(LDLIBS) -lzlib1 -lws2_32
+	$(CC) -pthread $(LDFLAGS) -o $@ bgzip.o libhts.a $(LDLIBS) $(ALPHABETAGAMMA)
 
 htsfile: htsfile.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ htsfile.o libhts.a $(LDLIBS) -lzlib1 -lws2_32
+	$(CC) -pthread $(LDFLAGS) -o $@ htsfile.o libhts.a $(LDLIBS) $(ALPHABETAGAMMA)
 
 tabix: tabix.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ tabix.o libhts.a $(LDLIBS) -lzlib1 -lws2_32
+	$(CC) -pthread $(LDFLAGS) -o $@ tabix.o libhts.a $(LDLIBS) $(ALPHABETAGAMMA)
+
+tabix.dll: tabix.o libhts.a
+	$(CC) -shared -o $@ tabix.o libhts.a $(ALPHABETAGAMMA)
+	
+bgzip.dll: bgzip.o libhts.a
+	$(CC) -shared -o $@ bgzip.o libhts.a $(ALPHABETAGAMMA)
+	
+htsfile.dll: htsfile.o libhts.a
+	$(CC) -shared -o $@ htsfile.o libhts.a $(ALPHABETAGAMMA)
+	
+
 
 bgzip.o: bgzip.c config.h $(htslib_bgzf_h) $(htslib_hts_h)
 htsfile.o: htsfile.c config.h $(htslib_hfile_h) $(htslib_hts_h) $(htslib_sam_h) $(htslib_vcf_h)
@@ -324,25 +344,25 @@ check test: htsfile $(BUILT_TEST_PROGRAMS)
 	cd test && REF_PATH=: ./test.pl
 
 test/fieldarith: test/fieldarith.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/fieldarith.o libhts.a $(LDLIBS) 
+	$(CC) -pthread $(LDFLAGS) -o $@ test/fieldarith.o libhts.a $(LDLIBS)  $(ALPHABETAGAMMA)
 
 test/hfile: test/hfile.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/hfile.o libhts.a $(LDLIBS)
+	$(CC) -pthread $(LDFLAGS) -o $@ test/hfile.o libhts.a $(LDLIBS) $(ALPHABETAGAMMA)
 
 test/sam: test/sam.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/sam.o libhts.a $(LDLIBS) 
+	$(CC) -pthread $(LDFLAGS) -o $@ test/sam.o libhts.a $(LDLIBS)  $(ALPHABETAGAMMA)
 
 test/test-regidx: test/test-regidx.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/test-regidx.o libhts.a $(LDLIBS)
+	$(CC) -pthread $(LDFLAGS) -o $@ test/test-regidx.o libhts.a $(LDLIBS) $(ALPHABETAGAMMA)
 
 test/test_view: test/test_view.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/test_view.o libhts.a $(LDLIBS)
+	$(CC) -pthread $(LDFLAGS) -o $@ test/test_view.o libhts.a $(LDLIBS) $(ALPHABETAGAMMA)
 
 test/test-vcf-api: test/test-vcf-api.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/test-vcf-api.o libhts.a $(LDLIBS)
+	$(CC) -pthread $(LDFLAGS) -o $@ test/test-vcf-api.o libhts.a $(LDLIBS) $(ALPHABETAGAMMA)
 
 test/test-vcf-sweep: test/test-vcf-sweep.o libhts.a
-	$(CC) -pthread $(LDFLAGS) -o $@ test/test-vcf-sweep.o libhts.a $(LDLIBS)
+	$(CC) -pthread $(LDFLAGS) -o $@ test/test-vcf-sweep.o libhts.a $(LDLIBS) $(ALPHABETAGAMMA)
 
 test/fieldarith.o: test/fieldarith.c $(htslib_sam_h)
 test/hfile.o: test/hfile.c $(htslib_hfile_h) $(htslib_hts_defs_h)
