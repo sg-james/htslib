@@ -1118,11 +1118,11 @@ hts_itr_t *sam_itr_queryn(const hts_idx_t *idx, int tid, hts_pos_t begRec, hts_p
 {
     const hts_cram_idx_t *cidx = (const hts_cram_idx_t *) idx;
     if (idx == NULL)
-        return hts_itr_query(NULL, tid, begRec, endRec, sam_readrec_rest);
+        return hts_itr_queryn(NULL, tid, begRec, endRec, sam_readrec_rest);
     else if (cidx->fmt == HTS_FMT_CRAI)
         return NULL; // cram not supported
     else
-        return hts_itr_query(idx, tid, begRec, endRec, sam_readrec);
+        return hts_itr_queryn(idx, tid, begRec, endRec, sam_readrec);
 }
 
 static int cram_name2id(void *fdv, const char *ref)
