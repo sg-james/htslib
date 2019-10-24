@@ -1111,6 +1111,18 @@ When using HTS_IDX_REST or HTS_IDX_NONE, NULL can be passed in to @p idx.
  */
 hts_itr_t *sam_itr_queryi(const hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t end);
 
+/// Create a BAM iterator
+/** @param idx      Index
+ *  @param tid      Target id
+ *  @param begRec   The 'nth' record, 0-based
+ *  @param endRec   The 'mth' record, m >= nth
+ *  @return An iterator on success; NULL on failure
+ * 
+ * Query the 'n-th' to 'm-th' record. 
+ * Only works with CSIv2 indexes (that store 'nrec'/bin). 
+ */
+hts_itr_t *sam_itr_queryn(const hts_idx_t *idx, int tid, hts_pos_t begRec, hts_pos_t endRec);
+
 /// Create a SAM/BAM/CRAM iterator
 /** @param idx     Index
     @param hdr     Header

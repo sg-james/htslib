@@ -2539,11 +2539,11 @@ hts_itr_t *hts_itr_query(const hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t
     return iter;
 }
 
-hts_itr_t *hts_itr_nrec_query(const hts_idx_t *idx, int tid, int64_t beg, int64_t end, hts_readrec_func *readrec)
+hts_itr_t *hts_itr_queryn(const hts_idx_t *idx, int tid, int64_t begRec, int64_t endRec, hts_readrec_func *readrec)
 {
     bidx_t *bidx;
-    if (beg < 1) beg = 1;
-    if (end < beg) end = beg;
+    if (begRec < 1) begRec = 1;
+    if (endRec < begRec) endRec = begRec;
     if ((bidx = idx->bidx[tid]) == 0) return NULL;
 
     // neglecting higher bins, not sure how to count long events
@@ -2558,14 +2558,14 @@ hts_itr_t *hts_itr_nrec_query(const hts_idx_t *idx, int tid, int64_t beg, int64_
             khint_t k = kh_get(bin,bidx,ibin);
             if ( k==kh_end(bidx) ) continue;    // ibin not present in the index
             nrec += kh_val(bidx,k).nrec;
-            if ( nrec<beg ) 
+            if ( nrec<begRec ) 
             {
                 nrec_off += kh_val(bidx,k).nrec;
                 continue;
             }
             if  ( beg_pos<0 ) beg_pos = 1 + ((ibin - t) << s);
             end_pos = (ibin+1 - t) << s;
-            if ( nrec > end ) break;
+            if ( nrec > endRec ) break;
         }
         if ( nrec!=0 ) break;
         s += 3;
@@ -2573,8 +2573,8 @@ hts_itr_t *hts_itr_nrec_query(const hts_idx_t *idx, int tid, int64_t beg, int64_
     }
     hts_itr_t *itr = hts_itr_query(idx,tid,beg_pos,end_pos,readrec);
     itr->nrec_off = nrec_off;
-    itr->nrec_beg = beg;
-    itr->nrec_end = end;
+    itr->nrec_beg = begRec;
+    itr->nrec_end = endRec;
     return itr;
 }
 

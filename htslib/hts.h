@@ -970,14 +970,15 @@ const char *hts_parse_region(const char *str, int *tid, int64_t *beg, int64_t *e
  */
 hts_itr_t *hts_itr_query(const hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t end, hts_readrec_func *readrec);
 
+/// Create a single idx-range iterator
 /** @param idx      Index
     @param tid      Target ID
-    @param beg      Start index line of file
-    @param end      End index line of file
+    @param begRec   The 'nth' record, 0-based
+    @param endRec   The 'mth' record, m >= nth
     @param readrec  Callback to read a record from the input file
     @return An iterator on success; NULL on failure
 */
-hts_itr_t *hts_itr_nrec_query(const hts_idx_t *idx, int tid, int64_t beg, int64_t end, hts_readrec_func *readrec);
+hts_itr_t *hts_itr_queryn(const hts_idx_t *idx, int tid, int64_t begRec, int64_t endRec, hts_readrec_func *readrec);
 
 /// Free an iterator
 /** @param iter   Iterator to free
