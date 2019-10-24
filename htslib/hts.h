@@ -627,6 +627,7 @@ typedef struct {
     int curr_tid, curr_reg, curr_intv;
     hts_pos_t curr_beg, curr_end;
     uint64_t curr_off, nocoor_off;
+    uint64_t nrec_off, nrec_beg, nrec_end;
     hts_pair64_max_t *off;
     hts_readrec_func *readrec;
     hts_seek_func *seek;
@@ -968,6 +969,15 @@ const char *hts_parse_region(const char *str, int *tid, int64_t *beg, int64_t *e
     @return An iterator on success; NULL on failure
  */
 hts_itr_t *hts_itr_query(const hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t end, hts_readrec_func *readrec);
+
+/** @param idx      Index
+    @param tid      Target ID
+    @param beg      Start index line of file
+    @param end      End index line of file
+    @param readrec  Callback to read a record from the input file
+    @return An iterator on success; NULL on failure
+*/
+hts_itr_t *hts_itr_nrec_query(const hts_idx_t *idx, int tid, int64_t beg, int64_t end, hts_readrec_func *readrec);
 
 /// Free an iterator
 /** @param iter   Iterator to free

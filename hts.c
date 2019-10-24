@@ -377,7 +377,7 @@ int hts_detect_format(hFILE *hfile, htsFormat *fmt)
             fmt->version.minor = (len >= 5 && s[4] <= 2)? s[4] : 0;
             return 0;
         }
-        else if (memcmp(s, "CSI\1", 4) == 0) {
+        else if (memcmp(s, "CSI\2", 4) == 0) {
             fmt->category = index_file;
             fmt->format = csi;
             fmt->version.major = 1, fmt->version.minor = -1;
@@ -1509,8 +1509,8 @@ KSORT_INIT_STATIC(_off, hts_pair64_t, pair64_lt)
 KSORT_INIT_STATIC(_off_max, hts_pair64_max_t, pair64_lt)
 
 typedef struct {
-    int32_t m, n;
-    uint64_t loff;
+    int32_t m, n;           // number of chunks, m:allocated, n:used
+    uint64_t loff, nrec;    // loff:file offset, nrec:number of records
     hts_pair64_t *list;
 } bins_t;
 
@@ -1537,7 +1537,7 @@ struct __hts_idx_t {
         int last_tid, save_tid, finished;
         uint64_t last_off, save_off;
         uint64_t off_beg, off_end;
-        uint64_t n_mapped, n_unmapped;
+        uint64_t n_mapped, n_unmapped, n_rec;
     } z; // keep internal states
 };
 
@@ -1551,7 +1551,7 @@ static char * idx_format_name(int fmt) {
     }
 }
 
-static inline int insert_to_b(bidx_t *b, int bin, uint64_t beg, uint64_t end)
+static inline int insert_to_b(bidx_t *b, int bin, uint64_t beg, uint64_t end, uint64_t nrec)
 {
     khint_t k;
     bins_t *l;
@@ -1560,7 +1560,7 @@ static inline int insert_to_b(bidx_t *b, int bin, uint64_t beg, uint64_t end)
     if (absent < 0) return -1; // Out of memory
     l = &kh_value(b, k);
     if (absent) {
-        l->m = 1; l->n = 0;
+        l->m = 1; l->n = 0; l->nrec = 0;
         l->list = (hts_pair64_t*)calloc(l->m, sizeof(hts_pair64_t));
         if (!l->list) {
             kh_del(bin, b, k);
@@ -1573,6 +1573,7 @@ static inline int insert_to_b(bidx_t *b, int bin, uint64_t beg, uint64_t end)
         l->list = new_list;
         l->m = new_m;
     }
+    l->nrec += nrec;
     l->list[l->n].u = beg;
     l->list[l->n++].v = end;
     return 0;
@@ -1722,9 +1723,9 @@ int hts_idx_finish(hts_idx_t *idx, uint64_t final_offset)
     int i, ret = 0;
     if (idx == NULL || idx->z.finished) return 0; // do not run this function on an empty index or multiple times
     if (idx->z.save_tid >= 0) {
-        ret |= insert_to_b(idx->bidx[idx->z.save_tid], idx->z.save_bin, idx->z.save_off, final_offset);
-        ret |= insert_to_b(idx->bidx[idx->z.save_tid], META_BIN(idx), idx->z.off_beg, final_offset);
-        ret |= insert_to_b(idx->bidx[idx->z.save_tid], META_BIN(idx), idx->z.n_mapped, idx->z.n_unmapped);
+        ret |= insert_to_b(idx->bidx[idx->z.save_tid], idx->z.save_bin, idx->z.save_off, final_offset, idx->z.n_rec);
+        ret |= insert_to_b(idx->bidx[idx->z.save_tid], META_BIN(idx), idx->z.off_beg, final_offset, 0);
+        ret |= insert_to_b(idx->bidx[idx->z.save_tid], META_BIN(idx), idx->z.n_mapped, idx->z.n_unmapped, 0);
     }
     for (i = 0; i < idx->n; ++i) {
         update_loff(idx, i, (idx->fmt == HTS_FMT_CSI));
@@ -1829,22 +1830,26 @@ int hts_idx_push(hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t end, uint64_t
     if ((int)idx->z.last_bin != bin) { // then possibly write the binning index
         if (idx->z.save_bin != 0xffffffffu) { // save_bin==0xffffffffu only happens to the first record
             if (insert_to_b(idx->bidx[idx->z.save_tid], idx->z.save_bin,
-                            idx->z.save_off, idx->z.last_off) < 0) return -1;
+                            idx->z.save_off, idx->z.last_off, idx->z.n_rec) < 0) return -1;
         }
         if (idx->z.last_bin == 0xffffffffu && idx->z.save_bin != 0xffffffffu) { // change of chr; keep meta information
             idx->z.off_end = idx->z.last_off;
             if (insert_to_b(idx->bidx[idx->z.save_tid], META_BIN(idx),
-                            idx->z.off_beg, idx->z.off_end) < 0) return -1;
+                            idx->z.off_beg, idx->z.off_end, idx->z.n_rec) < 0) return -1;
             if (insert_to_b(idx->bidx[idx->z.save_tid], META_BIN(idx),
-                            idx->z.n_mapped, idx->z.n_unmapped) < 0) return -1;
+                            idx->z.n_mapped, idx->z.n_unmapped, 0) < 0) return -1;
             idx->z.n_mapped = idx->z.n_unmapped = 0;
             idx->z.off_beg = idx->z.off_end;
         }
+        idx->z.n_rec = 0;
         idx->z.save_off = idx->z.last_off;
         idx->z.save_bin = idx->z.last_bin = bin;
         idx->z.save_tid = tid;
     }
-    if (is_mapped) ++idx->z.n_mapped;
+    if (is_mapped) {
+        ++idx->z.n_mapped;
+        ++ idx->z.n_rec;
+    }
     else ++idx->z.n_unmapped;
     idx->z.last_off = offset;
     idx->z.last_coor = beg;
@@ -1991,7 +1996,10 @@ static int hts_idx_save_core(const hts_idx_t *idx, BGZF *fp, int fmt)
                 if (kh_exist(bidx, k)) {
                     bins_t *p = &kh_value(bidx, k);
                     check(idx_write_uint32(fp, kh_key(bidx, k)));
-                    if (fmt == HTS_FMT_CSI) check(idx_write_uint64(fp, p->loff));
+                    if (fmt == HTS_FMT_CSI) {
+                        check(idx_write_uint64(fp, p->loff));
+                        check(idx_write_uint64(fp, p->nrec));
+                    } 
                     //int j;for(j=0;j<p->n;++j)fprintf(stderr,"%d,%llx,%d,%llx:%llx\n",kh_key(bidx,k),kh_val(bidx, k).loff,j,p->list[j].u,p->list[j].v);
                     check(idx_write_int32(fp, p->n));
                     for (j = 0; j < p->n; ++j) {
@@ -2047,7 +2055,7 @@ int hts_idx_save_as(const hts_idx_t *idx, const char *fn, const char *fnidx, int
     if (fp == NULL) return -1;
 
     if (fmt == HTS_FMT_CSI) {
-        check(bgzf_write(fp, "CSI\1", 4));
+        check(bgzf_write(fp, "CSI\2", 4));
         check(idx_write_int32(fp, idx->min_shift));
         check(idx_write_int32(fp, idx->n_lvls));
         check(idx_write_uint32(fp, idx->l_meta));
@@ -2094,6 +2102,8 @@ static int idx_read_core(hts_idx_t *idx, BGZF *fp, int fmt)
             if (fmt == HTS_FMT_CSI) {
                 if (bgzf_read(fp, &p->loff, 8) != 8) return -1;
                 if (is_be) ed_swap_8p(&p->loff);
+                if (bgzf_read(fp, &p->nrec, 8) != 8) return -1;
+                if (is_be) ed_swap_8p(&p->nrec);
             } else p->loff = 0;
             if (bgzf_read(fp, &p->n, 4) != 4) return -1;
             if (is_be) ed_swap_4p(&p->n);
@@ -2137,7 +2147,7 @@ static hts_idx_t *idx_read(const char *fn)
     is_be = ed_is_big();
     if (bgzf_read(fp, magic, 4) != 4) goto fail;
 
-    if (memcmp(magic, "CSI\1", 4) == 0) {
+    if (memcmp(magic, "CSI\2", 4) == 0) {
         uint32_t x[3], n;
         if (bgzf_read(fp, x, 12) != 12) goto fail;
         if (is_be) for (i = 0; i < 3; ++i) ed_swap_4p(&x[i]);
@@ -2479,7 +2489,7 @@ hts_itr_t *hts_itr_query(const hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t
 
             // retrieve bins
             reg2bins(beg, end, iter, idx->min_shift, idx->n_lvls);
-
+            uint64_t nrec = 0;
             for (i = n_off = 0; i < iter->bins.n; ++i)
                 if ((k = kh_get(bin, bidx, iter->bins.a[i])) != kh_end(bidx))
                     n_off += kh_value(bidx, k).n;
@@ -2499,6 +2509,7 @@ hts_itr_t *hts_itr_query(const hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t
                             off[n_off].v = p->list[j].v;
                             n_off++;
                         }
+                    nrec += p->nrec;
                 }
             }
 
@@ -2526,6 +2537,45 @@ hts_itr_t *hts_itr_query(const hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t
     }
 
     return iter;
+}
+
+hts_itr_t *hts_itr_nrec_query(const hts_idx_t *idx, int tid, int64_t beg, int64_t end, hts_readrec_func *readrec)
+{
+    bidx_t *bidx;
+    if (beg < 1) beg = 1;
+    if (end < beg) end = beg;
+    if ((bidx = idx->bidx[tid]) == 0) return NULL;
+
+    // neglecting higher bins, not sure how to count long events
+    int64_t beg_pos = -1, end_pos = -1;
+    uint64_t nrec = 0, nrec_off = 0;
+    int level, s = idx->min_shift, t = ((1<<idx->n_lvls*3) - 1) / 7;
+    for (level=idx->n_lvls; level>0; level--)
+    {
+        int ibin, start = hts_bin_first(level);
+        for (ibin=start; ibin < idx->n_bins; ibin++)
+        {
+            khint_t k = kh_get(bin,bidx,ibin);
+            if ( k==kh_end(bidx) ) continue;    // ibin not present in the index
+            nrec += kh_val(bidx,k).nrec;
+            if ( nrec<beg ) 
+            {
+                nrec_off += kh_val(bidx,k).nrec;
+                continue;
+            }
+            if  ( beg_pos<0 ) beg_pos = 1 + ((ibin - t) << s);
+            end_pos = (ibin+1 - t) << s;
+            if ( nrec > end ) break;
+        }
+        if ( nrec!=0 ) break;
+        s += 3;
+        t -= 1<<level*3;
+    }
+    hts_itr_t *itr = hts_itr_query(idx,tid,beg_pos,end_pos,readrec);
+    itr->nrec_off = nrec_off;
+    itr->nrec_beg = beg;
+    itr->nrec_end = end;
+    return itr;
 }
 
 int hts_itr_multi_bam(const hts_idx_t *idx, hts_itr_t *iter)
@@ -3209,13 +3259,19 @@ int hts_itr_next(BGZF *fp, hts_itr_t *iter, void *r, void *data)
         }
         if ((ret = iter->readrec(fp, data, r, &tid, &beg, &end)) >= 0) {
             iter->curr_off = bgzf_tell(fp);
-            if (tid != iter->tid || beg >= iter->end) { // no need to proceed
-                ret = -1; break;
-            } else if (end > iter->beg && iter->end > beg) {
-                iter->curr_tid = tid;
-                iter->curr_beg = beg;
-                iter->curr_end = end;
-                return ret;
+            if (tid != iter->tid) { ret = -1; break; } // no need to proceed
+            if(iter->nrec_end == 0) { // is a region query
+                if(beg >= iter->end){ ret = -1; break; }
+                if (end > iter->beg && iter->end > beg) {
+                    iter->curr_tid = tid;
+                    iter->curr_beg = beg;
+                    iter->curr_end = end;
+                    return ret;
+                }
+            } else { // is a nrec query
+                iter->nrec_off++;
+                if ( iter->nrec_off > iter->nrec_end ) { ret = -1; break; }
+                if ( iter->nrec_off >= iter->nrec_beg ) return ret;
             }
         } else break; // end of file or error
     }
