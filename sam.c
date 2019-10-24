@@ -1103,26 +1103,26 @@ static hts_itr_t *cram_itr_query(const hts_idx_t *idx, int tid, hts_pos_t beg, h
     return iter;
 }
 
-hts_itr_t *sam_itr_queryi(const hts_idx_t *idx, int tid, hts_pos_t begRec, hts_pos_t endRec)
-{
-    const hts_cram_idx_t *cidx = (const hts_cram_idx_t *) idx;
-    if (idx == NULL)
-        return hts_itr_query(NULL, tid, begRec, endRec, sam_readrec_rest);
-    else if (cidx->fmt == HTS_FMT_CRAI)
-        return cram_itr_query(idx, tid, begRec, endRec, sam_readrec);
-    else
-        return hts_itr_query(idx, tid, begRec, endRec, sam_readrec);
-}
-
-hts_tr_t *sam_itr_queryn(const hts_idx_t *idx, int tid, hts_pos_t nth, hts_pos_t mth)
+hts_itr_t *sam_itr_queryi(const hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t end)
 {
     const hts_cram_idx_t *cidx = (const hts_cram_idx_t *) idx;
     if (idx == NULL)
         return hts_itr_query(NULL, tid, beg, end, sam_readrec_rest);
     else if (cidx->fmt == HTS_FMT_CRAI)
-        return NULL; // cram not supported
+        return cram_itr_query(idx, tid, beg, end, sam_readrec);
     else
         return hts_itr_query(idx, tid, beg, end, sam_readrec);
+}
+
+hts_itr_t *sam_itr_queryn(const hts_idx_t *idx, int tid, hts_pos_t begRec, hts_pos_t endRec)
+{
+    const hts_cram_idx_t *cidx = (const hts_cram_idx_t *) idx;
+    if (idx == NULL)
+        return hts_itr_query(NULL, tid, begRec, endRec, sam_readrec_rest);
+    else if (cidx->fmt == HTS_FMT_CRAI)
+        return NULL; // cram not supported
+    else
+        return hts_itr_query(idx, tid, begRec, endRec, sam_readrec);
 }
 
 static int cram_name2id(void *fdv, const char *ref)
