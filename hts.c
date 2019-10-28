@@ -2169,11 +2169,11 @@ static hts_idx_t *idx_read(const char *fn)
         if (bgzf_read(fp, &n, 4) != 4) goto fail;
         if (is_be) ed_swap_4p(&n);
         if (n > INT32_MAX) goto fail;
-        if ((idx = hts_idx_init(n, HTS_FMT_CSI, 0, x[0], x[1])) == NULL) goto fail;
+        if ((idx = hts_idx_init(n, fmt, 0, x[0], x[1])) == NULL) goto fail;
         idx->l_meta = x[2];
         idx->meta = meta;
         meta = NULL;
-        if (idx_read_core(idx, fp, HTS_FMT_CSI) < 0) goto fail;
+        if (idx_read_core(idx, fp, fmt) < 0) goto fail;
     }
     else if (memcmp(magic, "TBI\1", 4) == 0) {
         uint8_t x[8 * 4];
