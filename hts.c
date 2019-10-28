@@ -377,10 +377,16 @@ int hts_detect_format(hFILE *hfile, htsFormat *fmt)
             fmt->version.minor = (len >= 5 && s[4] <= 2)? s[4] : 0;
             return 0;
         }
-        else if (memcmp(s, "CSI\2", 4) == 0) {
+        else if (memcmp(s, "CSI\1", 4) == 0) {
             fmt->category = index_file;
             fmt->format = csi;
             fmt->version.major = 1, fmt->version.minor = -1;
+            return 0;
+        }
+        else if (memcmp(s, "CSI\2", 4) == 0) {
+            fmt->category = index_file;
+            fmt->format = csi;
+            fmt->version.major = 2, fmt->version.minor = -1;
             return 0;
         }
         else if (memcmp(s, "TBI\1", 4) == 0) {
@@ -2147,7 +2153,9 @@ static hts_idx_t *idx_read(const char *fn)
     is_be = ed_is_big();
     if (bgzf_read(fp, magic, 4) != 4) goto fail;
 
-    if (memcmp(magic, "CSI\2", 4) == 0) {
+    if (memcmp(magic, "CSI", 3) == 0) {
+        int fmt = HTS_FMT_CSIV1;
+        if(magic[3] == 2) fmt = HTS_FMT_CSIV2;
         uint32_t x[3], n;
         if (bgzf_read(fp, x, 12) != 12) goto fail;
         if (is_be) for (i = 0; i < 3; ++i) ed_swap_4p(&x[i]);
