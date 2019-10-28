@@ -192,7 +192,7 @@ enum htsExactFormat {
     json HTS_DEPRECATED_ENUM("Use htsExactFormat 'htsget' instead") = htsget,
     empty_format,  // File is empty (or empty after decompression)
     fasta_format, fastq_format, fai_format, fqi_format,
-    csiv1, csiv2,
+    csiv1 = csi, csiv2,
     format_maximum = 32767
 };
 
@@ -577,8 +577,8 @@ When REST or NONE is used, idx is also ignored and may be NULL.
 #define HTS_FMT_BAI 1
 #define HTS_FMT_TBI 2
 #define HTS_FMT_CRAI 3
-#define HTS_FMT_CSIV1 4
-#define HTS_FMT_CSIV2 5
+#define HTS_FMT_CSIV1 0
+#define HTS_FMT_CSIV2 4
 
 // Almost INT64_MAX, but when cast into a 32-bit int it's
 // also INT_MAX instead of -1.  This avoids bugs with old code

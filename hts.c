@@ -111,6 +111,8 @@ static enum htsFormatCategory format_category(enum htsExactFormat fmt)
     case bai:
     case crai:
     case csi:
+    case csiv1:
+    case csiv2:
     case fai_format:
     case fqi_format:
     case gzi:
@@ -379,13 +381,13 @@ int hts_detect_format(hFILE *hfile, htsFormat *fmt)
         }
         else if (memcmp(s, "CSI\1", 4) == 0) {
             fmt->category = index_file;
-            fmt->format = csi;
+            fmt->format = csiv1;
             fmt->version.major = 1, fmt->version.minor = -1;
             return 0;
         }
         else if (memcmp(s, "CSI\2", 4) == 0) {
             fmt->category = index_file;
-            fmt->format = csi;
+            fmt->format = csiv2;
             fmt->version.major = 2, fmt->version.minor = -1;
             return 0;
         }
@@ -484,6 +486,8 @@ char *hts_format_description(const htsFormat *format)
     case bai:   kputs("BAI", &str); break;
     case crai:  kputs("CRAI", &str); break;
     case csi:   kputs("CSI", &str); break;
+    case csiv1:   kputs("CSIv1", &str); break;
+    case csiv2:   kputs("CSIv2", &str); break;
     case fai_format:    kputs("FASTA-IDX", &str); break;
     case fqi_format:    kputs("FASTQ-IDX", &str); break;
     case gzi:   kputs("GZI", &str); break;
@@ -512,6 +516,8 @@ char *hts_format_description(const htsFormat *format)
         case bam:
         case bcf:
         case csi:
+        case csiv1:
+        case csiv2:
         case tbi:
             // These are by definition BGZF, so just use the generic term
             kputs(" compressed", &str);
@@ -1190,7 +1196,9 @@ const char *hts_format_file_extension(const htsFormat *format) {
     case crai: return "crai";
     case vcf:  return "vcf";
     case bcf:  return "bcf";
-    case csi:  return "csi";
+    case csi:
+    case csiv1:
+    case csiv2:        return "csi";
     case fai_format:   return "fai";
     case fqi_format:   return "fqi";
     case gzi:  return "gzi";
@@ -1549,7 +1557,9 @@ struct __hts_idx_t {
 
 static char * idx_format_name(int fmt) {
     switch (fmt) {
-        case HTS_FMT_CSI: return "csi";
+        case HTS_FMT_CSI: 
+        case HTS_FMT_CSIV1:
+        case HTS_FMT_CSIV2: return "csi";
         case HTS_FMT_BAI: return "bai";
         case HTS_FMT_TBI: return "tbi";
         case HTS_FMT_CRAI: return "crai";
@@ -1734,7 +1744,7 @@ int hts_idx_finish(hts_idx_t *idx, uint64_t final_offset)
         ret |= insert_to_b(idx->bidx[idx->z.save_tid], META_BIN(idx), idx->z.n_mapped, idx->z.n_unmapped, 0);
     }
     for (i = 0; i < idx->n; ++i) {
-        update_loff(idx, i, (idx->fmt == HTS_FMT_CSI));
+        update_loff(idx, i, (idx->fmt == HTS_FMT_CSIV1 || idx->fmt == HTS_FMT_CSIV2));
         ret |= compress_binning(idx, i);
     }
     idx->z.finished = 1;
@@ -1754,7 +1764,7 @@ int hts_idx_check_range(hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t end)
         s <<= 3;
     }
 
-    if (idx->fmt == HTS_FMT_CSI) {
+    if (idx->fmt == HTS_FMT_CSIV1 || idx->fmt == HTS_FMT_CSIV2) {
         hts_log_error("Region %"PRIhts_pos"..%"PRIhts_pos" cannot be stored in a csi index "
                       "with min_shift = %d, n_lvls = %d. Try using "
                       "min_shift = 14, n_lvls >= %d",
@@ -2002,7 +2012,9 @@ static int hts_idx_save_core(const hts_idx_t *idx, BGZF *fp, int fmt)
                 if (kh_exist(bidx, k)) {
                     bins_t *p = &kh_value(bidx, k);
                     check(idx_write_uint32(fp, kh_key(bidx, k)));
-                    if (fmt == HTS_FMT_CSI) {
+                    if (fmt == HTS_FMT_CSIV1) {
+                        check(idx_write_uint64(fp, p->loff));
+                    } else if (fmt == HTS_FMT_CSIV2) {
                         check(idx_write_uint64(fp, p->loff));
                         check(idx_write_uint64(fp, p->nrec));
                     } 
@@ -2016,7 +2028,7 @@ static int hts_idx_save_core(const hts_idx_t *idx, BGZF *fp, int fmt)
                 }
 
         // write linear index
-        if (fmt != HTS_FMT_CSI) {
+        if (fmt != HTS_FMT_CSIV1 && fmht != HTS_FMT_CSIV2) {
             check(idx_write_int32(fp, lidx->n));
             for (j = 0; j < lidx->n; ++j)
                 check(idx_write_uint64(fp, lidx->offset[j]));
@@ -2037,7 +2049,9 @@ int hts_idx_save(const hts_idx_t *idx, const char *fn, int fmt)
     strcpy(fnidx, fn);
     switch (fmt) {
     case HTS_FMT_BAI: strcat(fnidx, ".bai"); break;
-    case HTS_FMT_CSI: strcat(fnidx, ".csi"); break;
+    case HTS_FMT_CSI:
+    case HTS_FMT_CSIV1:
+    case HTS_FMT_CSIV2: strcat(fnidx, ".csi"); break;
     case HTS_FMT_TBI: strcat(fnidx, ".tbi"); break;
     default: abort();
     }
@@ -2060,7 +2074,13 @@ int hts_idx_save_as(const hts_idx_t *idx, const char *fn, const char *fnidx, int
     fp = bgzf_open(fnidx, (fmt == HTS_FMT_BAI)? "wu" : "w");
     if (fp == NULL) return -1;
 
-    if (fmt == HTS_FMT_CSI) {
+    if (fmt == HTS_FMT_CSI1) {
+        check(bgzf_write(fp, "CSI\1", 4));
+        check(idx_write_int32(fp, idx->min_shift));
+        check(idx_write_int32(fp, idx->n_lvls));
+        check(idx_write_uint32(fp, idx->l_meta));
+        if (idx->l_meta) check(bgzf_write(fp, idx->meta, idx->l_meta));
+    if (fmt == HTS_FMT_CSIV2) {
         check(bgzf_write(fp, "CSI\2", 4));
         check(idx_write_int32(fp, idx->min_shift));
         check(idx_write_int32(fp, idx->n_lvls));
@@ -2105,12 +2125,19 @@ static int idx_read_core(hts_idx_t *idx, BGZF *fp, int fmt)
             if (absent <  0) return -2; // No memory
             if (absent == 0) return -3; // Duplicate bin number
             p = &kh_val(h, k);
-            if (fmt == HTS_FMT_CSI) {
+            if (fmt == HTS_FMT_CSIV1) {
+                if (bgzf_read(fp, &p->loff, 8) != 8) return -1;
+                if (is_be) ed_swap_8p(&p->loff);
+                p->nrec = 0;
+            } else if (fmt == HTS_FMT_CSIV2) {
                 if (bgzf_read(fp, &p->loff, 8) != 8) return -1;
                 if (is_be) ed_swap_8p(&p->loff);
                 if (bgzf_read(fp, &p->nrec, 8) != 8) return -1;
                 if (is_be) ed_swap_8p(&p->nrec);
-            } else p->loff = 0;
+            } else { 
+                p->loff = 0;
+                p->nrec = 0;
+            }
             if (bgzf_read(fp, &p->n, 4) != 4) return -1;
             if (is_be) ed_swap_4p(&p->n);
             if (p->n < 0) return -3;
@@ -2121,7 +2148,7 @@ static int idx_read_core(hts_idx_t *idx, BGZF *fp, int fmt)
             if (bgzf_read(fp, p->list, ((size_t) p->n)<<4) != ((size_t) p->n)<<4) return -1;
             if (is_be) swap_bins(p);
         }
-        if (fmt != HTS_FMT_CSI) { // load linear index
+        if (fmt != HTS_FMT_CSIV1 && fmt != HTS_FMT_CSIV2 { // load linear index
             int j;
             if (bgzf_read(fp, &l->n, 4) != 4) return -1;
             if (is_be) ed_swap_4p(&l->n);

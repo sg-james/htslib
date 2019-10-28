@@ -745,7 +745,7 @@ int bam_set_qname(bam1_t *rec, const char *qname)
  *** BAM indexing ***
  ********************/
 
-static hts_idx_t *sam_index(htsFile *fp, int min_shift)
+static hts_idx_t *sam_index(htsFile *fp, int min_shift, int fmt)
 {
     int n_lvls, i, fmt, ret;
     bam1_t *b;
@@ -761,8 +761,15 @@ static hts_idx_t *sam_index(htsFile *fp, int min_shift)
         }
         max_len += 256;
         for (n_lvls = 0, s = 1<<min_shift; max_len > s; ++n_lvls, s <<= 3);
-        fmt = HTS_FMT_CSI;
-    } else min_shift = 14, n_lvls = 5, fmt = HTS_FMT_BAI;
+
+        if(fmt != HTS_FMT_CSIV1 || fmt != HTS_FMT_CSIV2){
+            fmt = HTS_FMT_CSIV2;
+        }
+    } else { 
+        min_shift = 14;
+        n_lvls = 5;
+        fmt = HTS_FMT_BAI;
+    }
     idx = hts_idx_init(h->n_targets, fmt, bgzf_tell(fp->fp.bgzf), min_shift, n_lvls);
     b = bam_init1();
     while ((ret = sam_read1(fp, h, b)) >= 0) {
@@ -785,7 +792,7 @@ err:
     return NULL;
 }
 
-int sam_index_build3(const char *fn, const char *fnidx, int min_shift, int nthreads)
+int sam_index_build4(const char *fn, const char *fnidx, int min_shift, int nthreads, int fmt)
 {
     hts_idx_t *idx;
     htsFile *fp;
@@ -809,9 +816,14 @@ int sam_index_build3(const char *fn, const char *fnidx, int min_shift, int nthre
             ret = -1;
             break;
         }
-        idx = sam_index(fp, min_shift);
+        idx = sam_index(fp, min_shift, fmt);
         if (idx) {
-            ret = hts_idx_save_as(idx, fn, fnidx, (min_shift > 0)? HTS_FMT_CSI : HTS_FMT_BAI);
+            if(min_shift == 0) { 
+                fmt = HTS_FMT_BAI;
+            } else if(fmt != HTS_FMT_CSIV1 || fmt != HTS_FMT_CSIV2) { 
+                fmt = HTS_FMT_CSIV2;
+            }
+            ret = hts_idx_save_as(idx, fn, fnidx, fmt);
             if (ret < 0) ret = -4;
             hts_idx_destroy(idx);
         }
@@ -827,14 +839,19 @@ int sam_index_build3(const char *fn, const char *fnidx, int min_shift, int nthre
     return ret;
 }
 
+int sam_index_build3(const char *fn, const char *fnidx, int min_shift)
+{
+    return sam_index_build4(fn, fnidx, min_shift, 0, HTS_FMT_CSIV2);
+}
+
 int sam_index_build2(const char *fn, const char *fnidx, int min_shift)
 {
-    return sam_index_build3(fn, fnidx, min_shift, 0);
+    return sam_index_build4(fn, fnidx, min_shift, 0, HTS_FMT_CSIV2);
 }
 
 int sam_index_build(const char *fn, int min_shift)
 {
-    return sam_index_build3(fn, NULL, min_shift, 0);
+    return sam_index_build4(fn, NULL, min_shift, 0, HTS_FMT_CSIV2);
 }
 
 // Provide bam_index_build() symbol for binary compability with earlier HTSlib
@@ -844,22 +861,26 @@ int bam_index_build(const char *fn, int min_shift)
     return sam_index_build2(fn, NULL, min_shift);
 }
 
+
+
 // Initialise fp->idx for the current format type.
 // This must be called after the header has been written but no other data.
-int sam_idx_init(htsFile *fp, sam_hdr_t *h, int min_shift, const char *fnidx) {
+int sam_idx_init2(htsFile *fp, sam_hdr_t *h, int min_shift, const char *fnidx, int fmt) {
     fp->fnidx = fnidx;
     if (fp->format.format == bam || fp->format.format == bcf ||
         (fp->format.format == sam && fp->format.compression == bgzf)) {
-        int n_lvls, fmt = HTS_FMT_CSI;
-        if (min_shift > 0) {
+        int n_lvls;
+        if(min_shift == 0) {
+            min_shift = 14, n_lvls = 5, fmt = HTS_FMT_BAI;
+        } else {
             int64_t max_len = 0, s;
             int i;
             for (i = 0; i < h->n_targets; ++i)
                 if (max_len < h->target_len[i]) max_len = h->target_len[i];
             max_len += 256;
             for (n_lvls = 0, s = 1<<min_shift; max_len > s; ++n_lvls, s <<= 3);
-
-        } else min_shift = 14, n_lvls = 5, fmt = HTS_FMT_BAI;
+            if(fmt != HTS_FMT_CSIV1 || fmt != HTS_FMT_CSIV2) fmt = HTS_FMT_CSIV2; // guard: unknown fmt
+        }
 
         fp->idx = hts_idx_init(h->n_targets, fmt, bgzf_tell(fp->fp.bgzf), min_shift, n_lvls);
         return fp->idx ? 0 : -1;
@@ -872,6 +893,12 @@ int sam_idx_init(htsFile *fp, sam_hdr_t *h, int min_shift, const char *fnidx) {
 
     return -1;
 }
+int sam_idx_init(htsFile *fp, sam_hdr_t *h, int min_shift, const char *fnidx, int fmt)
+{
+    sam_idx_init2(fp, h, min_shift, fnidx, (min_shift > 0 ? HTS_FMT_CSIV2 : HTS_FMT_BAI));
+}
+
+
 
 // Finishes an index. Call afer the last record has been written.
 // Returns 0 on success, <0 on failure.
