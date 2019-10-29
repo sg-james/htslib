@@ -187,12 +187,13 @@ enum htsFormatCategory {
 enum htsExactFormat {
     unknown_format,
     binary_format, text_format,
-    sam, bam, bai, cram, crai, vcf, bcf, csi, gzi, tbi, bed,
+    sam, bam, bai, cram, crai, vcf, bcf, csi HTS_DEPRECATED_ENUM("Use htsExactFormat 'csiv1' instead"),
+    csiv1 = csi, gzi, tbi, bed,
     htsget,
     json HTS_DEPRECATED_ENUM("Use htsExactFormat 'htsget' instead") = htsget,
     empty_format,  // File is empty (or empty after decompression)
     fasta_format, fastq_format, fai_format, fqi_format,
-    csiv1 = csi, csiv2,
+    csiv2,
     format_maximum = 32767
 };
 
@@ -623,7 +624,7 @@ typedef int hts_seek_func(void *fp, int64_t offset, int where);
 typedef int64_t hts_tell_func(void *fp);
 
 typedef struct {
-    uint32_t read_rest:1, finished:1, is_cram:1, nocoor:1, multi:1, dummy:27;
+    uint32_t read_rest:1, finished:1, is_cram:1, nocoor:1, multi:1, is_nrec:1, dummy:26;
     int tid, n_off, i, n_reg;
     hts_pos_t beg, end;
     hts_reglist_t *reg_list;

@@ -1018,6 +1018,20 @@ int bam_set_qname(bam1_t *b, const char *qname);
 */
 int sam_idx_init(htsFile *fp, sam_hdr_t *h, int min_shift, const char *fnidx);
 
+/// Initialise fp->idx for the current format type for SAM, BAM and CRAM types .
+/** @param fp        File handle for the data file being written.
+    @param h         Bam header structured (needed for BAI and CSI).
+    @param min_shift 0 for BAI, or larger for CSI (CSI defaults to 14).
+    @param fnidx     Filename to write index to.  This pointer must remain valid
+                     until after sam_idx_save is called.
+    @param fmt       One of HTS_FMT_BAI / HTS_FMT_CSIV1 / HTS_FMT_CSIV2
+    @return          0 on success, <0 on failure.
+
+    @note This must be called after the header has been written, but before
+          any other data.
+*/
+int sam_idx_init2(htsFile *fp, sam_hdr_t *h, int min_shift, const char *fnidx, int fmt);
+
 /// Writes the index initialised with sam_idx_init to disk.
 /** @param fp        File handle for the data file being written.
     @return          0 on success, <0 on filaure.

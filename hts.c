@@ -1553,7 +1553,6 @@ struct __hts_idx_t {
 
 static char * idx_format_name(int fmt) {
     switch (fmt) {
-        case HTS_FMT_CSI: 
         case HTS_FMT_CSIV1:
         case HTS_FMT_CSIV2: return "csi";
         case HTS_FMT_BAI: return "bai";
@@ -1860,7 +1859,7 @@ int hts_idx_push(hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t end, uint64_t
     }
     if (is_mapped) {
         ++idx->z.n_mapped;
-        ++ idx->z.n_rec;
+        ++idx->z.n_rec;
     }
     else ++idx->z.n_unmapped;
     idx->z.last_off = offset;
@@ -2024,7 +2023,7 @@ static int hts_idx_save_core(const hts_idx_t *idx, BGZF *fp, int fmt)
                 }
 
         // write linear index
-        if (fmt != HTS_FMT_CSIV1 && fmht != HTS_FMT_CSIV2) {
+        if (fmt != HTS_FMT_CSIV1 && fmt != HTS_FMT_CSIV2) {
             check(idx_write_int32(fp, lidx->n));
             for (j = 0; j < lidx->n; ++j)
                 check(idx_write_uint64(fp, lidx->offset[j]));
@@ -2045,7 +2044,6 @@ int hts_idx_save(const hts_idx_t *idx, const char *fn, int fmt)
     strcpy(fnidx, fn);
     switch (fmt) {
     case HTS_FMT_BAI: strcat(fnidx, ".bai"); break;
-    case HTS_FMT_CSI:
     case HTS_FMT_CSIV1:
     case HTS_FMT_CSIV2: strcat(fnidx, ".csi"); break;
     case HTS_FMT_TBI: strcat(fnidx, ".tbi"); break;
@@ -2070,18 +2068,18 @@ int hts_idx_save_as(const hts_idx_t *idx, const char *fn, const char *fnidx, int
     fp = bgzf_open(fnidx, (fmt == HTS_FMT_BAI)? "wu" : "w");
     if (fp == NULL) return -1;
 
-    if (fmt == HTS_FMT_CSI1) {
+    if (fmt == HTS_FMT_CSIV1) {
         check(bgzf_write(fp, "CSI\1", 4));
         check(idx_write_int32(fp, idx->min_shift));
         check(idx_write_int32(fp, idx->n_lvls));
         check(idx_write_uint32(fp, idx->l_meta));
         if (idx->l_meta) check(bgzf_write(fp, idx->meta, idx->l_meta));
-    if (fmt == HTS_FMT_CSIV2) {
+    } else if (fmt == HTS_FMT_CSIV2) {
         check(bgzf_write(fp, "CSI\2", 4));
         check(idx_write_int32(fp, idx->min_shift));
         check(idx_write_int32(fp, idx->n_lvls));
         check(idx_write_uint32(fp, idx->l_meta));
-        if (idx->l_meta) check(bgzf_write(fp, idx->meta, idx->l_meta));
+        if (idx->l_meta) check(bgzf_write(fp, idx->meta, idx->l_meta));        
     } else if (fmt == HTS_FMT_TBI) {
         check(bgzf_write(fp, "TBI\1", 4));
     } else if (fmt == HTS_FMT_BAI) {
@@ -2144,7 +2142,7 @@ static int idx_read_core(hts_idx_t *idx, BGZF *fp, int fmt)
             if (bgzf_read(fp, p->list, ((size_t) p->n)<<4) != ((size_t) p->n)<<4) return -1;
             if (is_be) swap_bins(p);
         }
-        if (fmt != HTS_FMT_CSIV1 && fmt != HTS_FMT_CSIV2 { // load linear index
+        if (fmt != HTS_FMT_CSIV1 && fmt != HTS_FMT_CSIV2) { // load linear index
             int j;
             if (bgzf_read(fp, &l->n, 4) != 4) return -1;
             if (is_be) ed_swap_4p(&l->n);
@@ -2573,6 +2571,8 @@ hts_itr_t *hts_itr_query(const hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t
 hts_itr_t *hts_itr_queryn(const hts_idx_t *idx, int tid, int64_t begRec, int64_t endRec, hts_readrec_func *readrec)
 {
     bidx_t *bidx;
+
+    // Add guards to the number requested
     if (begRec < 1) begRec = 1;
     if (endRec < begRec) endRec = begRec;
     if ((bidx = idx->bidx[tid]) == 0) return NULL;
@@ -2603,6 +2603,8 @@ hts_itr_t *hts_itr_queryn(const hts_idx_t *idx, int tid, int64_t begRec, int64_t
         t -= 1<<level*3;
     }
     hts_itr_t *itr = hts_itr_query(idx,tid,beg_pos,end_pos,readrec);
+
+    itr->is_nrec = 1; // set n_rec flag for this iterator
     itr->nrec_off = nrec_off;
     itr->nrec_beg = begRec;
     itr->nrec_end = endRec;
@@ -3478,7 +3480,7 @@ static int idx_test_and_fetch(const char *fn, const char **local_fn, int *local_
             hts_log_error("Failed to detect format of index file '%s'", fn);
             goto fail;
         }
-        if (fmt.category != index_file || (fmt.format != bai &&  fmt.format != csi && fmt.format != tbi)) {
+        if (fmt.category != index_file || (fmt.format != bai &&  fmt.format != csiv1 && fmt.format != csiv2 && fmt.format != tbi)) {
             hts_log_error("Format of index file '%s' is not supported", fn);
             goto fail;
         }

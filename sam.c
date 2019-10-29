@@ -748,7 +748,7 @@ int bam_set_qname(bam1_t *rec, const char *qname)
 // If either, min_shift == 0 or fmt == HTS_FMT_BAI, then it creates 'bai' index
 static hts_idx_t *sam_index(htsFile *fp, int min_shift, int fmt)
 {
-    int n_lvls, i, fmt, ret;
+    int n_lvls, i, ret;
     bam1_t *b;
     hts_idx_t *idx;
     sam_hdr_t *h;
@@ -833,9 +833,9 @@ int sam_index_build4(const char *fn, const char *fnidx, int min_shift, int nthre
     return ret;
 }
 
-int sam_index_build3(const char *fn, const char *fnidx, int min_shift)
+int sam_index_build3(const char *fn, const char *fnidx, int min_shift, int nthreads)
 {
-    return sam_index_build4(fn, fnidx, min_shift, 0, HTS_FMT_CSIV2);
+    return sam_index_build4(fn, fnidx, min_shift, nthreads, HTS_FMT_CSIV2);
 }
 
 int sam_index_build2(const char *fn, const char *fnidx, int min_shift)
@@ -887,7 +887,7 @@ int sam_idx_init2(htsFile *fp, sam_hdr_t *h, int min_shift, const char *fnidx, i
 
     return -1;
 }
-int sam_idx_init(htsFile *fp, sam_hdr_t *h, int min_shift, const char *fnidx, int fmt)
+int sam_idx_init(htsFile *fp, sam_hdr_t *h, int min_shift, const char *fnidx)
 {
     sam_idx_init2(fp, h, min_shift, fnidx, (min_shift > 0 ? HTS_FMT_CSIV2 : HTS_FMT_BAI));
 }
