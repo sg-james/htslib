@@ -766,7 +766,7 @@ static hts_idx_t *sam_index(htsFile *fp, int min_shift, int fmt)
         max_len += 256;
         for (n_lvls = 0, s = 1<<min_shift; max_len > s; ++n_lvls, s <<= 3);
 
-        if(fmt != HTS_FMT_CSIV1 || fmt != HTS_FMT_CSIV2) fmt = HTS_FMT_CSIV2;
+        if(fmt != HTS_FMT_CSIV1 && fmt != HTS_FMT_CSIV2) fmt = HTS_FMT_CSIV2;
     }
     idx = hts_idx_init(h->n_targets, fmt, bgzf_tell(fp->fp.bgzf), min_shift, n_lvls);
     b = bam_init1();
@@ -873,7 +873,7 @@ int sam_idx_init2(htsFile *fp, sam_hdr_t *h, int min_shift, const char *fnidx, i
                 if (max_len < h->target_len[i]) max_len = h->target_len[i];
             max_len += 256;
             for (n_lvls = 0, s = 1<<min_shift; max_len > s; ++n_lvls, s <<= 3);
-            if(fmt != HTS_FMT_CSIV1 || fmt != HTS_FMT_CSIV2) fmt = HTS_FMT_CSIV2; // guard: unknown fmt
+            if(fmt != HTS_FMT_CSIV1 && fmt != HTS_FMT_CSIV2) fmt = HTS_FMT_CSIV2; // guard: unknown fmt
         }
 
         fp->idx = hts_idx_init(h->n_targets, fmt, bgzf_tell(fp->fp.bgzf), min_shift, n_lvls);

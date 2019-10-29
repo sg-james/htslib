@@ -2570,6 +2570,8 @@ hts_itr_t *hts_itr_query(const hts_idx_t *idx, int tid, hts_pos_t beg, hts_pos_t
 
 hts_itr_t *hts_itr_queryn(const hts_idx_t *idx, int tid, int64_t begRec, int64_t endRec, hts_readrec_func *readrec)
 {
+    if(idx->fmt != HTS_FMT_CSIV2) return NULL; // guard: 'queryn' only supports CSIv2 indexes
+
     bidx_t *bidx;
 
     // Add guards to the number requested
