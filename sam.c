@@ -745,6 +745,7 @@ int bam_set_qname(bam1_t *rec, const char *qname)
  *** BAM indexing ***
  ********************/
 
+// If either, min_shift == 0 or fmt == HTS_FMT_BAI, then it creates 'bai' index
 static hts_idx_t *sam_index(htsFile *fp, int min_shift, int fmt)
 {
     int n_lvls, i, fmt, ret;
@@ -753,7 +754,10 @@ static hts_idx_t *sam_index(htsFile *fp, int min_shift, int fmt)
     sam_hdr_t *h;
     h = sam_hdr_read(fp);
     if (h == NULL) return NULL;
-    if (min_shift > 0) {
+
+    if(min_shift == 0 || fmt == HTS_FMT_BAI) {
+        min_shift = 14, n_lvls = 5, fmt = HTS_FMT_BAI;
+    } else {
         hts_pos_t max_len = 0, s;
         for (i = 0; i < h->n_targets; ++i) {
             hts_pos_t len = sam_hdr_tid2len(h, i);
@@ -762,13 +766,7 @@ static hts_idx_t *sam_index(htsFile *fp, int min_shift, int fmt)
         max_len += 256;
         for (n_lvls = 0, s = 1<<min_shift; max_len > s; ++n_lvls, s <<= 3);
 
-        if(fmt != HTS_FMT_CSIV1 || fmt != HTS_FMT_CSIV2){
-            fmt = HTS_FMT_CSIV2;
-        }
-    } else { 
-        min_shift = 14;
-        n_lvls = 5;
-        fmt = HTS_FMT_BAI;
+        if(fmt != HTS_FMT_CSIV1 || fmt != HTS_FMT_CSIV2) fmt = HTS_FMT_CSIV2;
     }
     idx = hts_idx_init(h->n_targets, fmt, bgzf_tell(fp->fp.bgzf), min_shift, n_lvls);
     b = bam_init1();
@@ -818,11 +816,7 @@ int sam_index_build4(const char *fn, const char *fnidx, int min_shift, int nthre
         }
         idx = sam_index(fp, min_shift, fmt);
         if (idx) {
-            if(min_shift == 0) { 
-                fmt = HTS_FMT_BAI;
-            } else if(fmt != HTS_FMT_CSIV1 || fmt != HTS_FMT_CSIV2) { 
-                fmt = HTS_FMT_CSIV2;
-            }
+            fmt = hts_idx_fmt(idx);
             ret = hts_idx_save_as(idx, fn, fnidx, fmt);
             if (ret < 0) ret = -4;
             hts_idx_destroy(idx);
@@ -870,7 +864,7 @@ int sam_idx_init2(htsFile *fp, sam_hdr_t *h, int min_shift, const char *fnidx, i
     if (fp->format.format == bam || fp->format.format == bcf ||
         (fp->format.format == sam && fp->format.compression == bgzf)) {
         int n_lvls;
-        if(min_shift == 0) {
+        if(min_shift == 0 || fmt == HTS_FMT_BAI) {
             min_shift = 14, n_lvls = 5, fmt = HTS_FMT_BAI;
         } else {
             int64_t max_len = 0, s;

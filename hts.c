@@ -110,7 +110,6 @@ static enum htsFormatCategory format_category(enum htsExactFormat fmt)
 
     case bai:
     case crai:
-    case csi:
     case csiv1:
     case csiv2:
     case fai_format:
@@ -485,7 +484,6 @@ char *hts_format_description(const htsFormat *format)
         break;
     case bai:   kputs("BAI", &str); break;
     case crai:  kputs("CRAI", &str); break;
-    case csi:   kputs("CSI", &str); break;
     case csiv1:   kputs("CSIv1", &str); break;
     case csiv2:   kputs("CSIv2", &str); break;
     case fai_format:    kputs("FASTA-IDX", &str); break;
@@ -515,7 +513,6 @@ char *hts_format_description(const htsFormat *format)
         switch (format->format) {
         case bam:
         case bcf:
-        case csi:
         case csiv1:
         case csiv2:
         case tbi:
@@ -1196,7 +1193,6 @@ const char *hts_format_file_extension(const htsFormat *format) {
     case crai: return "crai";
     case vcf:  return "vcf";
     case bcf:  return "bcf";
-    case csi:
     case csiv1:
     case csiv2:        return "csi";
     case fai_format:   return "fai";
